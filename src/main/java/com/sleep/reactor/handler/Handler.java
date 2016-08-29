@@ -6,6 +6,9 @@ package com.sleep.reactor.handler;
  */
 public interface Handler {
 	
+	/**
+	 * 处理具体的客户端请求
+	 */
 	public void handle();
 
 }
