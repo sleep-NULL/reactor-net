@@ -1,37 +1,56 @@
 package com.sleep.reactor.net;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sleep.reactor.channel.RequestChannel;
 import com.sleep.reactor.message.ByteMessage;
 
-public class Processor {
+public class Processor extends AbstractServer {
 
 	private static final Logger logger = LoggerFactory.getLogger(Processor.class);
+	
+	private int processorId;
 
 	private Selector selector;
+	
+	private Map<String, SocketChannel> clients;
 
 	private AtomicBoolean isRunning = new AtomicBoolean(false);
+	
+	private RequestChannel<ReqOrRes> requestChannel;
 
+	/**
+	 * 用于同 acceptor 交互
+	 */
 	private BlockingQueue<SocketChannel> clientChannelQueue;
-
-	public Processor() throws IOException {
+	
+	public Processor(int processorId, RequestChannel<ReqOrRes> requestChannel) throws IOException {
+		this.processorId = processorId;
+		this.clients = new ConcurrentHashMap<String, SocketChannel>();
+		this.requestChannel = requestChannel;
 		this.selector = Selector.open();
 		this.clientChannelQueue = new ArrayBlockingQueue<SocketChannel>(100);
 	}
 
 	public void assign(SocketChannel socketChannel) throws InterruptedException {
 		clientChannelQueue.put(socketChannel);
+		System.out.println(Thread.currentThread().getName() + " : " + clientChannelQueue.size());
 	}
 
 	private void registry() {
@@ -41,21 +60,18 @@ public class Processor {
 			if (socketChannel != null) {
 				socketChannel.configureBlocking(false);
 				socketChannel.socket().setTcpNoDelay(true);
-				socketChannel.register(selector, SelectionKey.OP_READ);
+				SelectionKey key = socketChannel.register(selector, SelectionKey.OP_READ);
 			}
 		} catch (Exception e) {
+			closeChannel(socketChannel);
 			logger.error("Client register OP_READ on Processor failed.", e);
-			if (socketChannel != null) {
-				try {
-					socketChannel.close();
-				} catch (IOException e1) {
-					// ignore
-				}
-			}
 		}
 	}
 
 	public void start() {
+		if (isRunning.get()) {
+			return;
+		}
 		isRunning.set(true);
 		while (isRunning.get()) {
 			// 从 queue 中获取新的客户端连接进行 OP_READ 注册
@@ -67,21 +83,19 @@ public class Processor {
 					while (it.hasNext()) {
 						SelectionKey key = it.next();
 						it.remove();
+						SocketChannel client = null;
 						if (key.isReadable()) {
-							SocketChannel client = null;
 							try {
 								client = (SocketChannel) key.channel();
-								getMessage(client);
+								readMessage(client);
 							} catch (Exception e) {
+								closeChannel(client);
 								logger.error("Client occur error.", e);
-								if (client != null) {
-									try {
-										client.close();
-									} catch (Exception e1) {
-										//ignore
-									}
-								}
 							}
+						}
+						// 非法的 key 进行通道的关闭操作
+						if (!key.isValid()) {
+							closeChannel(client);
 						}
 					}
 				}
@@ -91,16 +105,21 @@ public class Processor {
 		}
 	}
 
-	private void getMessage(SocketChannel client) throws IOException {
+	private void readMessage(SocketChannel client) throws IOException, InterruptedException {
 		while (true) {
 			ByteMessage message = new ByteMessage();
 			message.read(client);
-			if (message.getPayload() == null) {
-				break;
+			if (!message.isNull()) {
+				requestChannel.putRequest(ReqOrRes.buildReqOrRes(getClientId(client), processorId, message));
 			} else {
-				System.out.println(new String(message.getPayload().array()));
+				break;
 			}
 		}
+	}
+	
+	private String getClientId(SocketChannel client) {
+		Socket socket = client.socket();
+		return socket.getInetAddress().getHostAddress() + ":" + socket.getLocalPort();
 	}
 
 }

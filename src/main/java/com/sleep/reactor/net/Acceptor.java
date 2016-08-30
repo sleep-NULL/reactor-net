@@ -12,13 +12,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sleep.reactor.channel.RequestChannel;
 import com.sleep.reactor.util.ThreadUtil;
 
 /**
  * @author yafeng.huang
  *
  */
-public class Acceptor {
+public class Acceptor extends AbstractServer {
 
 	private static final Logger logger = LoggerFactory.getLogger(Acceptor.class);
 
@@ -33,8 +34,11 @@ public class Acceptor {
 	private int roundRobinCount = 1;
 
 	private int roundRobinNum;
+	
+	private RequestChannel<ReqOrRes> requestChannel;
 
-	public Acceptor(String hostname, int port, int processorNum) throws IOException {
+	public Acceptor(String hostname, int port, int processorNum, RequestChannel<ReqOrRes> requestChannel) throws IOException {
+		this.requestChannel = requestChannel;
 		this.selector = Selector.open();
 		this.serverSockerChannel = ServerSocketChannel.open();
 		this.serverSockerChannel.configureBlocking(false);
@@ -45,9 +49,12 @@ public class Acceptor {
 	}
 
 	public void start() throws IOException {
+		if (isRunning.get()) {
+			return;
+		}
 		isRunning.set(true);
 		for (int i = 0; i < processors.length; i++) {
-			final Processor processor = new Processor();
+			final Processor processor = new Processor(i, requestChannel);
 			processors[i] = processor;
 			// 启动 processor 线程
 			ThreadUtil.newThread(new Runnable() {
@@ -57,32 +64,36 @@ public class Acceptor {
 				}
 			}, "processor-" + i);
 		}
+		SelectionKey key = null;
 		while (isRunning.get()) {
 			try {
 				int selectNum = selector.select(300L);
 				if (selectNum != 0) {
 					Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 					while (it.hasNext()) {
-						SelectionKey key = it.next();
+						key = it.next();
 						it.remove();
 						if (key.isAcceptable()) {
-							SocketChannel client = ((ServerSocketChannel) key.channel()).accept();
-							System.out.println(client.getRemoteAddress());
-							dealClient(client);
+							accept(key);
+						} else {
+							closeChannel(key.channel());
+							logger.error("Invalidate key in Acceptor");
 						}
 					}
 				}
 			} catch (Exception e) {
-				e.printStackTrace();
+				closeChannel(key.channel());
 				logger.error("Occur error accept client connection.", e);
 			}
 		}
 	}
 
-	private void dealClient(SocketChannel socketChannel) throws InterruptedException {
+	private void accept(SelectionKey key) throws InterruptedException, IOException {
+		SocketChannel client = ((ServerSocketChannel) key.channel()).accept();
 		int index = roundRobinCount % roundRobinNum;
 		roundRobinCount = index + 1;
-		processors[index].assign(socketChannel);
+		processors[index].assign(client);
+		System.out.println("assign to processor " + index);
 	}
 
 }

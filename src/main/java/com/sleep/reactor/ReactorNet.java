@@ -2,13 +2,37 @@ package com.sleep.reactor;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.sleep.reactor.channel.RequestChannel;
+import com.sleep.reactor.handler.DefaultHandler;
+import com.sleep.reactor.handler.HandlerThread;
 import com.sleep.reactor.net.Acceptor;
+import com.sleep.reactor.net.ReqOrRes;
+import com.sleep.reactor.util.ThreadUtil;
 
 public class ReactorNet {
-	
+
+	private static final Logger logger = LoggerFactory.getLogger(ReactorNet.class);
+
 	public static void main(String[] args) throws IOException {
-		Acceptor acceptor = new Acceptor("localhost", 4314, 5);
-		acceptor.start();
+		int processorNum = 5;
+		RequestChannel<ReqOrRes> requestChannel = new RequestChannel<ReqOrRes>(processorNum, 100);
+		final Acceptor acceptor = new Acceptor("localhost", 4314, processorNum, requestChannel);
+		ThreadUtil.newThread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					acceptor.start();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}, "Acceptor");
+		logger.info("Acceptor start.");
+		ThreadUtil.newThread(new HandlerThread(requestChannel, new DefaultHandler()), "Handler");
+		logger.info("Handler start.");
 	}
 
 }

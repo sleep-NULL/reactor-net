@@ -11,22 +11,17 @@ import java.nio.channels.ReadableByteChannel;
  */
 public class ByteMessage implements Message {
 
+	private static final int SIZE_LENGTH = 4;
+
+	private static final int MAX_SIZE = Integer.MAX_VALUE;
+
 	/**
 	 * 消息长度
 	 */
 	private int length;
-	
-	private static final int SIZE_LENGTH = 4;
-	
-	private static final int MAX_SIZE = Integer.MAX_VALUE;
-
-	/**
-	 * 存储消息长度的 buffer,int 需要 4 个字节存储
-	 */
-	private ByteBuffer size = ByteBuffer.allocate(SIZE_LENGTH);
 
 	private ByteBuffer payload;
-	
+
 	public int getLength() {
 		return length;
 	}
@@ -45,8 +40,8 @@ public class ByteMessage implements Message {
 
 	@Override
 	public byte[] toByteArray() {
-		if (payload != null) {
-			ByteBuffer buf = ByteBuffer.allocate(SIZE_LENGTH + payload.position());
+		if (!isNull()) {
+			ByteBuffer buf = ByteBuffer.allocate(SIZE_LENGTH + payload.limit());
 			buf.putInt(length);
 			buf.put(payload);
 			buf.rewind();
@@ -58,6 +53,7 @@ public class ByteMessage implements Message {
 
 	@Override
 	public void read(ReadableByteChannel readableByteChannel) throws IOException {
+		ByteBuffer size = ByteBuffer.allocate(SIZE_LENGTH);
 		readableByteChannel.read(size);
 		if (!size.hasRemaining()) {
 			size.flip();
@@ -67,13 +63,21 @@ public class ByteMessage implements Message {
 			}
 			payload = ByteBuffer.allocate(length);
 			readableByteChannel.read(payload);
-			payload.flip();
+			if (!payload.hasRemaining()) {
+				payload.flip();
+			} else {
+				payload = null;
+			}
 		}
+	}
+	
+	public boolean isNull() {
+		return payload == null;
 	}
 
 	@Override
 	public String toString() {
 		return "ByteMessage [length=" + length + ", payload=" + payload + "]";
 	}
-	
+
 }
