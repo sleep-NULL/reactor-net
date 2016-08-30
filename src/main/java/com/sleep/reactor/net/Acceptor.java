@@ -67,15 +67,10 @@ public class Acceptor extends AbstractServer implements Runnable {
 		}
 		isRunning.set(true);
 		for (int i = 0; i < processors.length; i++) {
-			final Processor processor = new Processor(i, requestChannel);
+			Processor processor = new Processor(i, requestChannel);
 			processors[i] = processor;
 			// 启动 processor 线程
-			ThreadUtil.newThread(new Runnable() {
-				@Override
-				public void run() {
-					processor.start();
-				}
-			}, "processor-" + i);
+			ThreadUtil.newThread(processors[i], "processor-" + i);
 		}
 		SelectionKey key = null;
 		while (isRunning.get()) {

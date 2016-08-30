@@ -19,25 +19,25 @@ import org.slf4j.LoggerFactory;
 import com.sleep.reactor.channel.RequestChannel;
 import com.sleep.reactor.message.ByteMessage;
 
-public class Processor extends AbstractServer {
+public class Processor extends AbstractServer implements Runnable {
 
 	private static final Logger logger = LoggerFactory.getLogger(Processor.class);
-	
+
 	private int processorId;
 
 	private Selector selector;
-	
+
 	private Map<String, SocketChannel> clients;
 
 	private AtomicBoolean isRunning = new AtomicBoolean(false);
-	
+
 	private RequestChannel<ReqOrRes> requestChannel;
 
 	/**
 	 * 用于同 acceptor 交互
 	 */
 	private BlockingQueue<SocketChannel> clientChannelQueue;
-	
+
 	public Processor(int processorId, RequestChannel<ReqOrRes> requestChannel) {
 		this.processorId = processorId;
 		this.clients = new ConcurrentHashMap<String, SocketChannel>();
@@ -69,7 +69,25 @@ public class Processor extends AbstractServer {
 		}
 	}
 
-	public void start() {
+	private void readMessage(SocketChannel client) throws IOException, InterruptedException {
+		while (true) {
+			ByteMessage message = new ByteMessage();
+			message.read(client);
+			if (!message.isNull()) {
+				requestChannel.putRequest(ReqOrRes.buildReqOrRes(getClientId(client), processorId, message));
+			} else {
+				break;
+			}
+		}
+	}
+
+	private String getClientId(SocketChannel client) {
+		Socket socket = client.socket();
+		return socket.getInetAddress().getHostAddress() + ":" + socket.getLocalPort();
+	}
+
+	@Override
+	public void run() {
 		if (isRunning.get()) {
 			return;
 		}
@@ -104,23 +122,7 @@ public class Processor extends AbstractServer {
 				logger.error("Processor occur error.", e);
 			}
 		}
-	}
 
-	private void readMessage(SocketChannel client) throws IOException, InterruptedException {
-		while (true) {
-			ByteMessage message = new ByteMessage();
-			message.read(client);
-			if (!message.isNull()) {
-				requestChannel.putRequest(ReqOrRes.buildReqOrRes(getClientId(client), processorId, message));
-			} else {
-				break;
-			}
-		}
-	}
-	
-	private String getClientId(SocketChannel client) {
-		Socket socket = client.socket();
-		return socket.getInetAddress().getHostAddress() + ":" + socket.getLocalPort();
 	}
 
 }
