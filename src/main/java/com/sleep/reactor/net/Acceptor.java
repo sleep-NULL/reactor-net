@@ -19,7 +19,7 @@ import com.sleep.reactor.util.ThreadUtil;
  * @author yafeng.huang
  *
  */
-public class Acceptor extends AbstractServer {
+public class Acceptor extends AbstractServer implements Runnable {
 
 	private static final Logger logger = LoggerFactory.getLogger(Acceptor.class);
 
@@ -37,18 +37,31 @@ public class Acceptor extends AbstractServer {
 	
 	private RequestChannel<ReqOrRes> requestChannel;
 
-	public Acceptor(String hostname, int port, int processorNum, RequestChannel<ReqOrRes> requestChannel) throws IOException {
+	public Acceptor(String hostname, int port, int processorNum, RequestChannel<ReqOrRes> requestChannel) {
 		this.requestChannel = requestChannel;
-		this.selector = Selector.open();
-		this.serverSockerChannel = ServerSocketChannel.open();
-		this.serverSockerChannel.configureBlocking(false);
-		this.serverSockerChannel.socket().bind(new InetSocketAddress(hostname, port));
-		this.serverSockerChannel.register(selector, SelectionKey.OP_ACCEPT);
+		try {
+			this.selector = Selector.open();
+			this.serverSockerChannel = ServerSocketChannel.open();
+			this.serverSockerChannel.configureBlocking(false);
+			this.serverSockerChannel.socket().bind(new InetSocketAddress(hostname, port));
+			this.serverSockerChannel.register(selector, SelectionKey.OP_ACCEPT);
+		} catch (IOException e ) {
+			throw new NetworkException("Acceptor create server socket channel failed.", e);
+		}
 		this.processors = new Processor[processorNum];
 		this.roundRobinNum = processorNum;
 	}
 
-	public void start() throws IOException {
+	private void accept(SelectionKey key) throws InterruptedException, IOException {
+		SocketChannel client = ((ServerSocketChannel) key.channel()).accept();
+		int index = roundRobinCount % roundRobinNum;
+		roundRobinCount = index + 1;
+		processors[index].assign(client);
+	}
+
+	@Override
+	public void run() {
+
 		if (isRunning.get()) {
 			return;
 		}
@@ -86,13 +99,7 @@ public class Acceptor extends AbstractServer {
 				logger.error("Occur error accept client connection.", e);
 			}
 		}
-	}
-
-	private void accept(SelectionKey key) throws InterruptedException, IOException {
-		SocketChannel client = ((ServerSocketChannel) key.channel()).accept();
-		int index = roundRobinCount % roundRobinNum;
-		roundRobinCount = index + 1;
-		processors[index].assign(client);
+	
 	}
 
 }

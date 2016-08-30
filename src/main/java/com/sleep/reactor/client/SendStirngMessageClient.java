@@ -24,7 +24,6 @@ public class SendStirngMessageClient {
 				while (it.hasNext()) {
 					SelectionKey key = it.next();
 					it.remove();
-
 					if (key.isConnectable()) {
 						if (client.isConnectionPending()) {
 							if (client.finishConnect()) {
@@ -32,12 +31,18 @@ public class SendStirngMessageClient {
 								// key.channel().register(selector,
 								// SelectionKey.OP_WRITE);
 								System.out.println("write");
-								for (int i = 0; i < 1000; i++) {
+								for (int i = 0; i < Integer.MAX_VALUE; i++) {
 									ByteBuffer buf = ByteBuffer.allocate(1024);
-									buf.putInt("hello world".length());
-									buf.put("hello world".getBytes());
+									buf.putInt(("hello world" + i).length());
+									buf.put(("hello world" + i).getBytes());
 									buf.flip();
 									((SocketChannel) key.channel()).write(buf);
+									try {
+										Thread.sleep(10L);
+									} catch (InterruptedException e) {
+										// TODO Auto-generated catch block
+										e.printStackTrace();
+									}
 								}
 							}
 						}

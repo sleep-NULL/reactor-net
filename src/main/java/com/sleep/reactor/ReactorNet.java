@@ -18,20 +18,14 @@ public class ReactorNet {
 
 	public static void main(String[] args) throws IOException {
 		int processorNum = 5;
+		int handlerNum = 3;
 		RequestChannel<ReqOrRes> requestChannel = new RequestChannel<ReqOrRes>(processorNum, 100);
-		final Acceptor acceptor = new Acceptor("localhost", 4314, processorNum, requestChannel);
-		ThreadUtil.newThread(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					acceptor.start();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
-		}, "Acceptor");
+		ThreadUtil.newThread(new Acceptor("localhost", 4314, processorNum, requestChannel), "Acceptor");
 		logger.info("Acceptor start.");
-		ThreadUtil.newThread(new HandlerThread(requestChannel, new DefaultHandler()), "Handler");
+		DefaultHandler handler = new DefaultHandler();
+		for (int i = 0; i < handlerNum; i++) {
+			ThreadUtil.newThread(new HandlerThread(requestChannel, handler), "Handler-" + i);
+		}
 		logger.info("Handler start.");
 	}
 

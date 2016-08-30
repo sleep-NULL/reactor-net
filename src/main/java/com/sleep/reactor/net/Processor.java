@@ -1,9 +1,7 @@
 package com.sleep.reactor.net;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -40,11 +38,15 @@ public class Processor extends AbstractServer {
 	 */
 	private BlockingQueue<SocketChannel> clientChannelQueue;
 	
-	public Processor(int processorId, RequestChannel<ReqOrRes> requestChannel) throws IOException {
+	public Processor(int processorId, RequestChannel<ReqOrRes> requestChannel) {
 		this.processorId = processorId;
 		this.clients = new ConcurrentHashMap<String, SocketChannel>();
 		this.requestChannel = requestChannel;
-		this.selector = Selector.open();
+		try {
+			this.selector = Selector.open();
+		} catch (IOException e) {
+			throw new NetworkException("Processor open selector failed.", e);
+		}
 		this.clientChannelQueue = new ArrayBlockingQueue<SocketChannel>(100);
 	}
 
