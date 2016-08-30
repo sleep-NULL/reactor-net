@@ -50,7 +50,6 @@ public class Processor extends AbstractServer {
 
 	public void assign(SocketChannel socketChannel) throws InterruptedException {
 		clientChannelQueue.put(socketChannel);
-		System.out.println(Thread.currentThread().getName() + " : " + clientChannelQueue.size());
 	}
 
 	private void registry() {

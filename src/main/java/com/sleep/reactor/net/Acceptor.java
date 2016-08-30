@@ -93,7 +93,6 @@ public class Acceptor extends AbstractServer {
 		int index = roundRobinCount % roundRobinNum;
 		roundRobinCount = index + 1;
 		processors[index].assign(client);
-		System.out.println("assign to processor " + index);
 	}
 
 }
