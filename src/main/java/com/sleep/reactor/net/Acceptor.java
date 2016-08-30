@@ -61,7 +61,6 @@ public class Acceptor extends AbstractServer implements Runnable {
 
 	@Override
 	public void run() {
-
 		if (isRunning.get()) {
 			return;
 		}
@@ -94,7 +93,6 @@ public class Acceptor extends AbstractServer implements Runnable {
 				logger.error("Occur error accept client connection.", e);
 			}
 		}
-	
 	}
 
 }

@@ -122,7 +122,6 @@ public class Processor extends AbstractServer implements Runnable {
 				logger.error("Processor occur error.", e);
 			}
 		}
-
 	}
 
 }
