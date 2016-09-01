@@ -3,6 +3,7 @@ package com.sleep.reactor.message;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SocketChannel;
 
 /**
  * 
@@ -12,15 +13,19 @@ import java.nio.channels.ReadableByteChannel;
 public class ByteMessage implements Message {
 
 	private static final int SIZE_LENGTH = 4;
-
+	
 	private static final int MAX_SIZE = Integer.MAX_VALUE;
 
 	/**
 	 * 消息长度
 	 */
 	private int length;
+	
+	private ByteBuffer size = ByteBuffer.allocate(SIZE_LENGTH);
 
 	private ByteBuffer payload;
+	
+	private ByteBuffer writeBuffer;
 
 	public int getLength() {
 		return length;
@@ -38,22 +43,9 @@ public class ByteMessage implements Message {
 		this.payload = payload;
 	}
 
-	@Override
-	public byte[] toByteArray() {
-		if (!isNull()) {
-			ByteBuffer buf = ByteBuffer.allocate(SIZE_LENGTH + payload.limit());
-			buf.putInt(length);
-			buf.put(payload);
-			buf.rewind();
-			payload.rewind();
-			return buf.array();
-		}
-		return null;
-	}
 
 	@Override
 	public void read(ReadableByteChannel readableByteChannel) throws IOException {
-		ByteBuffer size = ByteBuffer.allocate(SIZE_LENGTH);
 		readableByteChannel.read(size);
 		if (!size.hasRemaining()) {
 			size.flip();
@@ -61,6 +53,7 @@ public class ByteMessage implements Message {
 			if (length < 0 || length > MAX_SIZE) {
 				throw new InvalidateMessageException("Invalidate message length, length is " + length);
 			}
+			size.rewind();
 			payload = ByteBuffer.allocate(length);
 			readableByteChannel.read(payload);
 			if (!payload.hasRemaining()) {
@@ -76,8 +69,32 @@ public class ByteMessage implements Message {
 	}
 
 	@Override
-	public String toString() {
-		return "ByteMessage [length=" + length + ", payload=" + payload + "]";
+	public void write(SocketChannel channel) throws IOException {
+		if (writeBuffer == null) {
+			writeBuffer = ByteBuffer.allocate(SIZE_LENGTH + this.length);
+			writeBuffer.putInt(this.length);
+			writeBuffer.put(payload.array());
+			writeBuffer.flip();
+			channel.write(writeBuffer);
+		}
+		channel.write(writeBuffer);
+	}
+
+	@Override
+	public boolean complete() {
+		return writeBuffer != null && !writeBuffer.hasRemaining();
+	}
+	
+	public ByteMessage build(byte[] buf) {
+		if (buf == null) {
+			throw new IllegalArgumentException("Args can't be null.");
+		}
+		ByteMessage message = new ByteMessage();
+		message.setLength(buf.length);
+		message.size.putInt(buf.length);
+		message.size.flip();
+		message.setPayload(ByteBuffer.wrap(buf));
+		return message;
 	}
 
 }

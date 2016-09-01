@@ -13,7 +13,7 @@ public class DefaultHandler implements Handler<ReqOrRes, ReqOrRes> {
 	public ReqOrRes handle(ReqOrRes reqOrRes) {
 		ByteMessage message = reqOrRes.getMessage();
 		System.out.println(Thread.currentThread().getName() + " === " + new String(message.getPayload().array()));
-		return null;
+		return ReqOrRes.buildReqOrRes(reqOrRes.getClientId(), reqOrRes.getProcessorId(), message);
 	}
 
 }

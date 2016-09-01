@@ -2,6 +2,7 @@ package com.sleep.reactor.net;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -54,18 +55,14 @@ public class Processor extends AbstractServer implements Runnable {
 		clientChannelQueue.put(socketChannel);
 	}
 
-	private void registry() {
+	private void registry() throws InterruptedException, IOException {
 		SocketChannel socketChannel = null;
-		try {
-			socketChannel = this.clientChannelQueue.poll(300, TimeUnit.MILLISECONDS);
-			if (socketChannel != null) {
-				socketChannel.configureBlocking(false);
-				socketChannel.socket().setTcpNoDelay(true);
-				SelectionKey key = socketChannel.register(selector, SelectionKey.OP_READ);
-			}
-		} catch (Exception e) {
-			closeChannel(socketChannel);
-			logger.error("Client register OP_READ on Processor failed.", e);
+		socketChannel = this.clientChannelQueue.poll(300, TimeUnit.MILLISECONDS);
+		if (socketChannel != null) {
+			socketChannel.configureBlocking(false);
+			socketChannel.socket().setTcpNoDelay(true);
+			SelectionKey key = socketChannel.register(selector, SelectionKey.OP_READ);
+			clients.put(getClientId(socketChannel), socketChannel);
 		}
 	}
 
@@ -78,6 +75,16 @@ public class Processor extends AbstractServer implements Runnable {
 			} else {
 				break;
 			}
+		}
+	}
+	
+	private void processResponse() throws ClosedChannelException, InterruptedException {
+		ReqOrRes res = requestChannel.pollResponse(processorId, 300L);
+		if (res != null) {
+			System.out.println(res.getClientId());
+			System.out.println(res.getProcessorId());
+			SocketChannel client = clients.get(res.getClientId());
+			client.register(selector, SelectionKey.OP_WRITE, res);
 		}
 	}
 
@@ -94,23 +101,21 @@ public class Processor extends AbstractServer implements Runnable {
 		isRunning.set(true);
 		while (isRunning.get()) {
 			// 从 queue 中获取新的客户端连接进行 OP_READ 注册
-			registry();
+			SocketChannel client = null;
 			try {
+				registry();
+				processResponse();
 				int selectNum = selector.select(300L);
 				if (selectNum != 0) {
 					Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 					while (it.hasNext()) {
 						SelectionKey key = it.next();
 						it.remove();
-						SocketChannel client = null;
 						if (key.isReadable()) {
-							try {
-								client = (SocketChannel) key.channel();
-								readMessage(client);
-							} catch (Exception e) {
-								closeChannel(client);
-								logger.error("Client occur error.", e);
-							}
+							client = (SocketChannel) key.channel();
+							readMessage(client);
+						} else if (key.isWritable()) {
+							write(key);
 						}
 						// 非法的 key 进行通道的关闭操作
 						if (!key.isValid()) {
@@ -118,9 +123,20 @@ public class Processor extends AbstractServer implements Runnable {
 						}
 					}
 				}
-			} catch (Exception e) {
+			} catch (Throwable e) {
+				closeChannel(client);
 				logger.error("Processor occur error.", e);
 			}
+		}
+	}
+
+	private void write(SelectionKey key) throws IOException {
+		ReqOrRes res = (ReqOrRes)key.attachment();
+		if (res.getMessage().complete()) {
+			key.interestOps(SelectionKey.OP_READ);
+		} else {
+			res.getMessage().write((SocketChannel)key.channel());
+			key.interestOps(SelectionKey.OP_WRITE);
 		}
 	}
 

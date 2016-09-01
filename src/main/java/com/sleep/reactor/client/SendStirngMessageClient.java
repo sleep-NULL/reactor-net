@@ -8,12 +8,14 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
+import com.sleep.reactor.message.ByteMessage;
+
 public class SendStirngMessageClient {
 
 	public static void main(String[] args) throws IOException {
 		Selector selector = Selector.open();
 		SocketChannel client = SocketChannel.open();
-		client.socket().bind(new InetSocketAddress("localhost", 3000));
+		client.socket().bind(new InetSocketAddress("localhost", 3003));
 		client.configureBlocking(false);
 		client.connect(new InetSocketAddress("localhost", 4314));
 		client.register(selector, SelectionKey.OP_CONNECT);
@@ -28,24 +30,28 @@ public class SendStirngMessageClient {
 						if (client.isConnectionPending()) {
 							if (client.finishConnect()) {
 								System.out.println("connect");
-								// key.channel().register(selector,
-								// SelectionKey.OP_WRITE);
 								System.out.println("write");
-								for (int i = 0; i < Integer.MAX_VALUE; i++) {
-									ByteBuffer buf = ByteBuffer.allocate(1024);
-									buf.putInt(("hello world" + i).length());
-									buf.put(("hello world" + i).getBytes());
-									buf.flip();
-									((SocketChannel) key.channel()).write(buf);
-									try {
-										Thread.sleep(10L);
-									} catch (InterruptedException e) {
-										// TODO Auto-generated catch block
-										e.printStackTrace();
-									}
-								}
+								ByteBuffer buf = ByteBuffer.allocate(1024);
+								buf.putInt(("wtf world").length());
+								buf.put(("wtf world").getBytes());
+								buf.flip();
+								((SocketChannel) key.channel()).write(buf);
+								key.interestOps(SelectionKey.OP_READ);
 							}
 						}
+					} else if (key.isReadable()) {
+						System.out.println("read message from server");
+						ByteMessage message = new ByteMessage();
+						message.read(client);
+						System.out.println(new String(message.getPayload().array(), "UTF-8"));
+						key.interestOps(SelectionKey.OP_WRITE);
+					} else if (key.isWritable()) {
+						ByteBuffer buf = ByteBuffer.allocate(1024);
+						buf.putInt(("wtf world").length());
+						buf.put(("wtf world").getBytes());
+						buf.flip();
+						((SocketChannel) key.channel()).write(buf);
+						key.interestOps(SelectionKey.OP_READ);
 					}
 				}
 			}
