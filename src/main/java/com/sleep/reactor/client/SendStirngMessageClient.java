@@ -20,7 +20,7 @@ public class SendStirngMessageClient {
 		client.connect(new InetSocketAddress("localhost", 4314));
 		client.register(selector, SelectionKey.OP_CONNECT);
 		while (true) {
-			int num = selector.select(1000L);
+			int num = selector.select(10L);
 			if (num > 0) {
 				Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 				while (it.hasNext()) {
@@ -40,7 +40,6 @@ public class SendStirngMessageClient {
 							}
 						}
 					} else if (key.isReadable()) {
-						System.out.println("read message from server");
 						ByteMessage message = new ByteMessage();
 						message.read(client);
 						System.out.println(new String(message.getPayload().array(), "UTF-8"));
