@@ -81,8 +81,6 @@ public class Processor extends AbstractServer implements Runnable {
 	private void processResponse() throws ClosedChannelException, InterruptedException {
 		ReqOrRes res = requestChannel.pollResponse(processorId, 300L);
 		if (res != null) {
-			System.out.println(res.getClientId());
-			System.out.println(res.getProcessorId());
 			SocketChannel client = clients.get(res.getClientId());
 			client.register(selector, SelectionKey.OP_WRITE, res);
 		}
@@ -90,7 +88,7 @@ public class Processor extends AbstractServer implements Runnable {
 
 	private String getClientId(SocketChannel client) {
 		Socket socket = client.socket();
-		return socket.getInetAddress().getHostAddress() + ":" + socket.getLocalPort();
+		return socket.getInetAddress().getHostAddress() + ":" + socket.getPort();
 	}
 
 	@Override
