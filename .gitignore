@@ -10,3 +10,4 @@ temp
 *.log
 .idea/
 *.iml
+logs/
