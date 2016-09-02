@@ -61,20 +61,8 @@ public class Processor extends AbstractServer implements Runnable {
 		if (socketChannel != null) {
 			socketChannel.configureBlocking(false);
 			socketChannel.socket().setTcpNoDelay(true);
-			SelectionKey key = socketChannel.register(selector, SelectionKey.OP_READ);
+			socketChannel.register(selector, SelectionKey.OP_READ);
 			clients.put(getClientId(socketChannel), socketChannel);
-		}
-	}
-
-	private void readMessage(SocketChannel client) throws IOException, InterruptedException {
-		while (true) {
-			ByteMessage message = new ByteMessage();
-			message.read(client);
-			if (!message.isNull()) {
-				requestChannel.putRequest(ReqOrRes.buildReqOrRes(getClientId(client), processorId, message));
-			} else {
-				break;
-			}
 		}
 	}
 	
@@ -99,7 +87,7 @@ public class Processor extends AbstractServer implements Runnable {
 		isRunning.set(true);
 		while (isRunning.get()) {
 			// 从 queue 中获取新的客户端连接进行 OP_READ 注册
-			SocketChannel client = null;
+			SelectionKey key = null;
 			try {
 				registry();
 				processResponse();
@@ -107,22 +95,21 @@ public class Processor extends AbstractServer implements Runnable {
 				if (selectNum != 0) {
 					Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 					while (it.hasNext()) {
-						SelectionKey key = it.next();
+						key = it.next();
 						it.remove();
 						if (key.isReadable()) {
-							client = (SocketChannel) key.channel();
-							readMessage(client);
+							read(key);
 						} else if (key.isWritable()) {
 							write(key);
 						}
 						// 非法的 key 进行通道的关闭操作
 						if (!key.isValid()) {
-							closeChannel(client);
+							closeChannel(key);
 						}
 					}
 				}
 			} catch (Throwable e) {
-				closeChannel(client);
+				closeChannel(key);
 				logger.error("Processor occur error.", e);
 			}
 		}
@@ -136,6 +123,19 @@ public class Processor extends AbstractServer implements Runnable {
 			key.interestOps(SelectionKey.OP_READ);
 		} else {
 			key.interestOps(SelectionKey.OP_WRITE);
+		}
+	}
+	
+	private void read(SelectionKey key) throws IOException, InterruptedException {
+		SocketChannel client = (SocketChannel) key.channel();
+		while (true) {
+			ByteMessage message = new ByteMessage();
+			message.read(client);
+			if (!message.isNull()) {
+				requestChannel.putRequest(ReqOrRes.buildReqOrRes(getClientId(client), processorId, message));
+			} else {
+				break;
+			}
 		}
 	}
 
