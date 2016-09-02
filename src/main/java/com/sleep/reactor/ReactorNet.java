@@ -17,7 +17,7 @@ public class ReactorNet {
 	private static final Logger logger = LoggerFactory.getLogger(ReactorNet.class);
 
 	public static void main(String[] args) throws IOException {
-		int processorNum = 1;
+		int processorNum = 3;
 		int handlerNum = 3;
 		RequestChannel<ReqOrRes> requestChannel = new RequestChannel<ReqOrRes>(processorNum, 100);
 		ThreadUtil.newThread(new Acceptor("localhost", 4314, processorNum, requestChannel), "Acceptor");

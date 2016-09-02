@@ -15,7 +15,6 @@ public class SendStirngMessageClient {
 	public static void main(String[] args) throws IOException {
 		Selector selector = Selector.open();
 		SocketChannel client = SocketChannel.open();
-		client.socket().bind(new InetSocketAddress("localhost", 3003));
 		client.configureBlocking(false);
 		client.connect(new InetSocketAddress("localhost", 4314));
 		client.register(selector, SelectionKey.OP_CONNECT);

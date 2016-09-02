@@ -130,10 +130,11 @@ public class Processor extends AbstractServer implements Runnable {
 
 	private void write(SelectionKey key) throws IOException {
 		ReqOrRes res = (ReqOrRes)key.attachment();
+		res.getMessage().write((SocketChannel)key.channel());
 		if (res.getMessage().complete()) {
+			key.attach(null);// 便于垃圾回收
 			key.interestOps(SelectionKey.OP_READ);
 		} else {
-			res.getMessage().write((SocketChannel)key.channel());
 			key.interestOps(SelectionKey.OP_WRITE);
 		}
 	}
